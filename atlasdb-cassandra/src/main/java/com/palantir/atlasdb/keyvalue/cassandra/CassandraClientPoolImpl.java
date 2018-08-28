@@ -112,6 +112,8 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
     private final CassandraClientPoolMetrics metrics;
     private final InitializingWrapper wrapper = new InitializingWrapper();
 
+    private Set<InetSocketAddress> previousCassandraNodes;
+
     private ScheduledFuture<?> refreshPoolFuture;
 
     @VisibleForTesting
@@ -191,6 +193,7 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
                 () -> runtimeConfig.get().conservativeRequestExceptionHandler(),
                 blacklist);
         cassandra = new CassandraService(metricsManager, config, blacklist, qosClient);
+        previousCassandraNodes = cassandra.refreshTokenRanges();
     }
 
     private void tryInitialize() {
@@ -254,13 +257,19 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
     }
 
     private synchronized void refreshPool() {
+
+        log.debug("refreshing pool");
+
         blacklist.checkAndUpdate(cassandra.getPools());
 
         Set<InetSocketAddress> serversToAdd = Sets.newHashSet(config.servers());
         Set<InetSocketAddress> serversToRemove = ImmutableSet.of();
 
         if (config.autoRefreshNodes()) {
-            serversToAdd.addAll(cassandra.refreshTokenRanges());
+            Set<InetSocketAddress> currentServers = cassandra.refreshTokenRanges();
+            serversToAdd.addAll(currentServers);
+            serversToRemove = Sets.difference(previousCassandraNodes, currentServers);
+            previousCassandraNodes = currentServers;
         }
 
         serversToAdd = Sets.difference(serversToAdd, cassandra.getPools().keySet());
