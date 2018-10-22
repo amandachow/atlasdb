@@ -81,6 +81,7 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
 
         @Override
         protected void tryInitialize() {
+            log.debug("Trying to initialize");
             CassandraClientPoolImpl.this.tryInitialize();
         }
 
@@ -201,6 +202,7 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
 
         refreshPoolFuture = refreshDaemon.scheduleWithFixedDelay(() -> {
             try {
+                log.debug("Refreshing on schedule");
                 refreshPool();
             } catch (Throwable t) {
                 log.warn("Failed to refresh Cassandra KVS pool."
@@ -212,6 +214,7 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
         if (startupChecks == StartupChecks.RUN) {
             runOneTimeStartupChecks();
         }
+        log.debug("Refreshing on init");
         refreshPool(); // ensure we've initialized before returning
         metrics.registerAggregateMetrics(blacklist::size);
     }
@@ -258,7 +261,7 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
 
     private synchronized void refreshPool() {
 
-        log.debug("refreshing pool");
+        log.debug("Refreshing pool. Current pool {}" + cassandra.getPools().keySet());
 
         blacklist.checkAndUpdate(cassandra.getPools());
 
@@ -288,6 +291,8 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
             }
         }
 
+        log.debug("New pool {}", cassandra.getPools().keySet());
+
         log.debug("Cassandra pool refresh added hosts {}, removed hosts {}.",
                 SafeArg.of("serversToAdd", CassandraLogHelper.collectionOfHosts(serversToAdd)),
                 SafeArg.of("serversToRemove", CassandraLogHelper.collectionOfHosts(serversToRemove)));
@@ -296,11 +301,13 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
 
     @VisibleForTesting
     void addPool(InetSocketAddress server) {
+        log.debug("Adding server to pool: {}", server);
         cassandra.addPool(server);
     }
 
     @VisibleForTesting
     void removePool(InetSocketAddress server) {
+        log.debug("Removing server from pool: {}", server);
         cassandra.removePool(server);
     }
 
@@ -456,6 +463,7 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
     private void sanityCheckRingConsistency() {
         Multimap<Set<TokenRange>, InetSocketAddress> tokenRangesToHost = HashMultimap.create();
         for (InetSocketAddress host : cassandra.getPools().keySet()) {
+            log.debug("Checking ring consistency for host {}", host);
             CassandraClient client = null;
             try {
                 client = CassandraClientFactory.getClientInternal(host, config);
