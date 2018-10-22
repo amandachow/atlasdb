@@ -194,7 +194,7 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
                 () -> runtimeConfig.get().conservativeRequestExceptionHandler(),
                 blacklist);
         cassandra = new CassandraService(metricsManager, config, blacklist, qosClient);
-        previousCassandraNodes = cassandra.refreshTokenRanges();
+        previousCassandraNodes = Sets.newHashSet(config.servers());
         log.debug("Initial cassandra nodes {}", previousCassandraNodes);
     }
 
@@ -266,7 +266,7 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
 
         blacklist.checkAndUpdate(cassandra.getPools());
 
-        Set<InetSocketAddress> serversToAdd = Sets.newHashSet(config.servers());
+        Set<InetSocketAddress> serversToAdd = Sets.newHashSet(previousCassandraNodes);
         Set<InetSocketAddress> serversToRemove = ImmutableSet.of();
 
         if (config.autoRefreshNodes()) {
@@ -278,14 +278,14 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
             log.debug("Previous cassandra nodes may have changed {}", previousCassandraNodes);
         }
 
-        serversToAdd = Sets.difference(serversToAdd, cassandra.getPools().keySet());
-
         if (!config.autoRefreshNodes()) { // (we would just add them back in)
             serversToRemove = Sets.difference(cassandra.getPools().keySet(), config.servers());
         }
 
-        serversToAdd.forEach(cassandra::addPool);
         serversToRemove.forEach(cassandra::removePool);
+
+        serversToAdd = Sets.difference(serversToAdd, cassandra.getPools().keySet());
+        serversToAdd.forEach(cassandra::addPool);
 
         if (!(serversToAdd.isEmpty() && serversToRemove.isEmpty())) { // if we made any changes
             sanityCheckRingConsistency();
