@@ -194,7 +194,7 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
                 () -> runtimeConfig.get().conservativeRequestExceptionHandler(),
                 blacklist);
         cassandra = new CassandraService(metricsManager, config, blacklist, qosClient);
-        previousCassandraNodes = Sets.newHashSet(config.servers());
+        previousCassandraNodes = Sets.newHashSet();
         log.debug("Initial cassandra nodes {}", previousCassandraNodes);
     }
 
@@ -264,45 +264,41 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
 
         log.debug("Refreshing pool. Current pool {}", cassandra.getPools().keySet());
 
-        log.debug("Current previous cassandra nodes {}", previousCassandraNodes);
-
-        blacklist.checkAndUpdate(cassandra.getPools());
-
-        Set<InetSocketAddress> serversToAdd = Sets.newHashSet(previousCassandraNodes);
-        Set<InetSocketAddress> serversToRemove = ImmutableSet.of();
+        blacklist.checkAndUpdate(cassandra.getPools()); //achow can servers only be ADDED to the blacklist at startup?
+        Set<InetSocketAddress> serversToRemove = Sets.newHashSet();
+        Set<InetSocketAddress> serversToAdd = Sets.newHashSet();
+        Set<InetSocketAddress> currentServers = cassandra.refreshTokenRanges();
 
         if (config.autoRefreshNodes()) {
             log.debug("Auto refreshing");
-            Set<InetSocketAddress> currentServers = cassandra.refreshTokenRanges();
-            serversToAdd.addAll(currentServers);
-            serversToRemove = Sets.difference(previousCassandraNodes, currentServers);
-            previousCassandraNodes = currentServers;
-            log.debug("Previous cassandra nodes may have changed {}", previousCassandraNodes);
+            serversToRemove.addAll(Sets.difference(cassandra.getPools().keySet(), currentServers));
+            serversToAdd.addAll(Sets.difference(currentServers, cassandra.getPools().keySet()));
         }
 
+        //achow What does this comment mean???
         if (!config.autoRefreshNodes()) { // (we would just add them back in)
-            serversToRemove = Sets.difference(cassandra.getPools().keySet(), config.servers());
+            serversToAdd.addAll(config.servers());
+            serversToRemove.addAll(Sets.difference(cassandra.getPools().keySet(), config.servers()));
+        }
+
+        if (cassandra.getPools().keySet().isEmpty() && serversToAdd.isEmpty()) {
+            log.debug("Not aware of any previous nodes. Starting with nodes from configuration {} ", config.servers());
+            serversToAdd.addAll(config.servers());
         }
 
         serversToRemove.forEach(cassandra::removePool);
-
-        serversToAdd = Sets.difference(serversToAdd, cassandra.getPools().keySet());
         serversToAdd.forEach(cassandra::addPool);
 
         if (!(serversToAdd.isEmpty() && serversToRemove.isEmpty())) { // if we made any changes
             sanityCheckRingConsistency();
-            if (!config.autoRefreshNodes()) { // grab new token mapping, if we didn't already do this before
-                cassandra.refreshTokenRanges();
-            }
+//            if (!config.autoRefreshNodes()) { // grab new token mapping, if we didn't already do this before
+//                cassandra.refreshTokenRanges(); //achow what is this for????
+//            }
         }
 
         log.debug("Pool after refresh {}", cassandra.getPools().keySet());
 
         log.debug("Servers added {}, servers removed {}", serversToAdd, serversToRemove);
-
-        log.debug("Cassandra pool refresh added hosts {}, removed hosts {}.",
-                SafeArg.of("serversToAdd", CassandraLogHelper.collectionOfHosts(serversToAdd)),
-                SafeArg.of("serversToRemove", CassandraLogHelper.collectionOfHosts(serversToRemove)));
         cassandra.debugLogStateOfPool();
     }
 
