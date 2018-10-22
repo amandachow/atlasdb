@@ -118,6 +118,7 @@ public class CassandraService implements AutoCloseable {
                 }
             }
             tokenMap = newTokenRing.build();
+            log.debug("Refreshed token ranges {}", servers);
             return servers;
         } catch (Exception e) {
             log.info("Couldn't grab new token ranges for token aware cassandra mapping. We will retry in {} seconds.",

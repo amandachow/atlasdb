@@ -262,7 +262,9 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
 
     private synchronized void refreshPool() {
 
-        log.debug("Refreshing pool. Current pool {}" + cassandra.getPools().keySet());
+        log.debug("Refreshing pool. Current pool {}", cassandra.getPools().keySet());
+
+        log.debug("Current previous cassandra nodes {}", previousCassandraNodes);
 
         blacklist.checkAndUpdate(cassandra.getPools());
 
