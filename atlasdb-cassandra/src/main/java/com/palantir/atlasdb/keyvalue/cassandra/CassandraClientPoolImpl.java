@@ -262,9 +262,35 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
 
     private synchronized void refreshPool() {
 
+        /*
+         Expected behavior:
+            - With autorefresh:
+                - On initialization:
+                    - Add config servers and servers in token range
+                - On non-initialization refresh:
+                    - Find servers in client pool but not in token range, and remove from client pool
+                    - Find servers in token range but not in client pool, and add to client pool
+                - Goal:
+                    - At the end of the method, client pool equals token range
+            - Without autorefresh:
+                - On initialization:
+                    - Add config servers in token range
+                - On non-initialization server:
+                    - Add config servers not in client pool
+                    - Remove client pool servers not in config
+                - Goal: Client pool should always match config
+         */
+
         log.debug("Refreshing pool. Current pool {}", cassandra.getPools().keySet());
 
         blacklist.checkAndUpdate(cassandra.getPools()); //achow can servers only be ADDED to the blacklist at startup?
+
+        if (cassandra.getPools().isEmpty()) {
+            log.debug("Client pool empty (initializing), setting to servers in config {}", config.servers());
+            config.servers().forEach(cassandra::addPool);
+            log.debug("Config pool initialized to {}", config.servers());
+        }
+
         Set<InetSocketAddress> serversToRemove = Sets.newHashSet();
         Set<InetSocketAddress> serversToAdd = Sets.newHashSet();
         Set<InetSocketAddress> currentServers = cassandra.refreshTokenRanges();
@@ -277,13 +303,8 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
 
         //achow What does this comment mean???
         if (!config.autoRefreshNodes()) { // (we would just add them back in)
-            serversToAdd.addAll(config.servers());
+            serversToAdd.addAll(Sets.difference(config.servers(), cassandra.getPools().keySet()));
             serversToRemove.addAll(Sets.difference(cassandra.getPools().keySet(), config.servers()));
-        }
-
-        if (cassandra.getPools().keySet().isEmpty() && serversToAdd.isEmpty()) {
-            log.debug("Not aware of any previous nodes. Starting with nodes from configuration {} ", config.servers());
-            serversToAdd.addAll(config.servers());
         }
 
         serversToRemove.forEach(cassandra::removePool);
@@ -291,9 +312,6 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
 
         if (!(serversToAdd.isEmpty() && serversToRemove.isEmpty())) { // if we made any changes
             sanityCheckRingConsistency();
-//            if (!config.autoRefreshNodes()) { // grab new token mapping, if we didn't already do this before
-//                cassandra.refreshTokenRanges(); //achow what is this for????
-//            }
         }
 
         log.debug("Pool after refresh {}", cassandra.getPools().keySet());
