@@ -291,7 +291,7 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
             }
         }
 
-        log.debug("New pool {}", cassandra.getPools().keySet());
+        log.debug("Pool after refresh {}", cassandra.getPools().keySet());
 
         log.debug("Cassandra pool refresh added hosts {}, removed hosts {}.",
                 SafeArg.of("serversToAdd", CassandraLogHelper.collectionOfHosts(serversToAdd)),
@@ -301,13 +301,11 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
 
     @VisibleForTesting
     void addPool(InetSocketAddress server) {
-        log.debug("Adding server to pool: {}", server);
         cassandra.addPool(server);
     }
 
     @VisibleForTesting
     void removePool(InetSocketAddress server) {
-        log.debug("Removing server from pool: {}", server);
         cassandra.removePool(server);
     }
 

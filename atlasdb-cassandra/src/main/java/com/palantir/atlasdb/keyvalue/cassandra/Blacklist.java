@@ -97,6 +97,7 @@ public class Blacklist {
     }
 
     public void remove(InetSocketAddress host) {
+        log.warn("Removing from blacklist {}", host);
         blacklist.remove(host);
     }
 

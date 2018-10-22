@@ -271,12 +271,14 @@ public class CassandraService implements AutoCloseable {
     }
 
     public void addPool(InetSocketAddress server) {
+        log.debug("Adding pool {}", server);
         int currentPoolNumber = cassandraHosts.indexOf(server) + 1;
         currentPools.put(server,
                 new CassandraClientPoolingContainer(metricsManager, qosClient, server, config, currentPoolNumber));
     }
 
     public void removePool(InetSocketAddress removedServerAddress) {
+        log.debug("Removing pool {}", removedServerAddress);
         blacklist.remove(removedServerAddress);
         try {
             currentPools.get(removedServerAddress).shutdownPooling();
@@ -286,6 +288,7 @@ public class CassandraService implements AutoCloseable {
                     e);
         }
         currentPools.remove(removedServerAddress);
+        log.debug("Pool {} removed. New pool: {}", removedServerAddress, currentPools.keySet());
     }
 
     public void cacheInitialCassandraHosts() {
