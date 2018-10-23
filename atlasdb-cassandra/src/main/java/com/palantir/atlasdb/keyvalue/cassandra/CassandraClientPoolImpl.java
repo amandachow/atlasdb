@@ -285,12 +285,6 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
 
         blacklist.checkAndUpdate(cassandra.getPools()); //achow can servers only be ADDED to the blacklist at startup?
 
-        if (cassandra.getPools().isEmpty()) {
-            log.debug("Client pool empty (initializing), setting to servers in config {}", config.servers());
-            config.servers().forEach(cassandra::addPool);
-            log.debug("Config pool initialized to {}", config.servers());
-        }
-
         Set<InetSocketAddress> serversToRemove = Sets.newHashSet();
         Set<InetSocketAddress> serversToAdd = Sets.newHashSet();
         Set<InetSocketAddress> currentServers = cassandra.refreshTokenRanges();
