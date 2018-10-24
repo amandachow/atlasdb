@@ -301,6 +301,12 @@ public class CassandraClientPoolImpl implements CassandraClientPool {
             serversToRemove.addAll(Sets.difference(cassandra.getPools().keySet(), config.servers()));
         }
 
+        //guard against edge cases where client pool is totally empty
+        if (cassandra.getPools().isEmpty() && serversToAdd.isEmpty()) {
+            log.warn("Could not find any nodes in the client pool, defaulting to Cassandra hosts in configuration.");
+            serversToAdd.addAll(config.servers());
+        }
+
         serversToRemove.forEach(cassandra::removePool);
         serversToAdd.forEach(cassandra::addPool);
 

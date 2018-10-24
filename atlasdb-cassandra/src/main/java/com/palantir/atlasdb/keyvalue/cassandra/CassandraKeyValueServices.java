@@ -93,7 +93,7 @@ public final class CassandraKeyValueServices {
             // This only returns the schema versions of nodes that the client knows exist. In particular, if a node we
             // shook hands with goes down, it will have schema version UNREACHABLE; however, if we never shook hands
             // with a node, there will simply be no entry for it in the map. Hence the check for the number of nodes.
-            versions = client.describe_schema_versions();
+            versions = client.describe_schema_versions(); //TODO(achow) check that this is all nodes in the cluster
             if (requiredNumberNodesAgreeOnSchemaVersion(allowQuorumAgreement, config, versions)) {
                 return;
             }
@@ -144,7 +144,8 @@ public final class CassandraKeyValueServices {
             return false;
         }
 
-        int numberOfServers = config.servers().size();
+        int numberOfServers = versions.values().stream().map(List::size).reduce(Integer::sum)
+                .orElse(config.servers().size());
         int numberOfVisibleNodes = getNumberOfReachableNodes(versions);
 
         if (allowQuorumAgreement) {
